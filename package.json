@@ -1,0 +1,24 @@
+{
+  "name": "litesql",
+  "version": "0.0.1",
+  "description": "The easy way to deal with sqlite databases in node.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yelouafi/node-litesql.git"
+  },
+  "keywords": [
+    "sql",
+    "sqlite",
+    "litesql",
+    "node"
+  ],
+  "author": "Yassine Elouafi <yelouafi@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yelouafi/node-litesql/issues"
+  },
+  "homepage": "https://github.com/yelouafi/node-litesql"
+}
