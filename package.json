@@ -9,6 +9,7 @@
     "type": "git",
     "url": "https://github.com/yelouafi/node-litesql.git"
   },
+  "main": "./lib/index.js",
   "keywords": [
     "sql",
     "sqlite",
