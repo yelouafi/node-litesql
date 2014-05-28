@@ -79,7 +79,7 @@ describe('litesql', function(){
             
             it('should append "ORDER BY id DESC LIMIT(1)" to the given sql statement', function() {    
                 var sql = "select * from table";
-                var qry = new litesql.Query(sql, [], table);
+                var qry = new litesql.Query(sql, table);
                 qry.last();
                 sql += " ORDER BY id DESC LIMIT(1)";
                 assert.equal(qry.sql, sql);
@@ -90,7 +90,7 @@ describe('litesql', function(){
             
             it('should append "WHERE "id" = 1" to the given sql statement', function() {    
                 var sql = "select * from table";
-                var qry = new litesql.Query(sql, [], table);	
+                var qry = new litesql.Query(sql, table);	
                 qry.where(1);
                 sql += ' WHERE "id" = 1';
                 assert.equal(qry.sql, sql);
@@ -98,7 +98,7 @@ describe('litesql', function(){
             
             it('should append "WHERE "id" = ?" to the given sql statement', function() {    
                 var sql = "select * from table";
-                var qry = new litesql.Query(sql, [], table);	
+                var qry = new litesql.Query(sql, table);	
                 qry.where("x");
                 sql += ' WHERE "id" = ?';
                 assert.equal(qry.sql, sql);
@@ -106,7 +106,7 @@ describe('litesql', function(){
             
             it('should append "WHERE "name" = ? AND "age" < ? AND "status" IN (?, ?)" to the given sql statement', function() {    
                 var sql = "select * from table";
-                var qry = new litesql.Query(sql, [], table);	
+                var qry = new litesql.Query(sql, table);	
                 qry.where({name: 'yassine', 'age <': 30, status: ['single', 'married'] });
                 sql += ' WHERE "name" = ? AND "age" < ? AND "status" IN (?, ?)';
                 assert.equal(qry.sql, sql);
@@ -117,15 +117,15 @@ describe('litesql', function(){
         describe('#find', function() {
             it('should append " WHERE "id" = ?" to the given sql statement', function() {    
                 var sql = "select * from table";
-                var qry = new litesql.Query(sql, [], table);	
+                var qry = new litesql.Query(sql, table);	
                 qry.find(1);
                 sql += ' WHERE "id" = ?';
                 assert.equal(qry.sql, sql);
             });
             
-            it('should append "select name,age from table WHERE "name" = ? AND "age" < ?" to the given sql statement', function() {    
+            it('should build "select name,age from table WHERE "name" = ? AND "age" < ?" on the given sql statement', function() {    
                 var sql = "select * from table";
-                var qry = new litesql.Query(sql, [], table);	
+                var qry = new litesql.Query(sql, table);	
                 qry.find({name: 'yassine', 'age <': 30}, ["name", "age"]);
                 sql = 'select name,age from table WHERE "name" = ? AND "age" < ?';
                 assert.equal(qry.sql, sql);
