@@ -23,6 +23,6 @@
   },
   "homepage": "https://github.com/yelouafi/node-litesql",
   "dependencies": {
-    "bluebird": "~1.2.4"
+    "sqlite3": "~2.2.3"
   }
 }

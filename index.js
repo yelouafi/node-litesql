@@ -1,10 +1,9 @@
 var sqlite3 = require('sqlite3');
 var utils = require('./lib/utils');
-var Promise = require("bluebird");
 
 var placeholder = '?';
 
-var Query = exports.Query = function(sql, table, params, db) {
+var Query = exports.Query = function(sql, table, params) {
 
     var operationsMap = {
         '=': '=',
@@ -52,11 +51,7 @@ var Query = exports.Query = function(sql, table, params, db) {
             return self;
         }
 
-        if (utils.isNumber(conditions)) {
-            return self.append(' WHERE "{0}" = {1}', self.table.pk, conditions);
-        }
-
-        if (utils.isString(conditions)) {
+        if (!utils.isObject(conditions)) {
             self.params.push(conditions);
             return self.append(' WHERE "{0}" = {1}', self.table.pk, placeholder);
         }
@@ -125,37 +120,29 @@ var Query = exports.Query = function(sql, table, params, db) {
 	
 };
 
-var Table = exports.Table = function (name, pk, db) {
+var Table = exports.Table = function (name, pk) {
 	var self = this;
-	
-	self.get = function(where) {
-		var qry = new Query("SELECT * FROM " + self.name, self).where(where);
-		return db.get( qry );
-	}
-	
+	self.name = name;
+    self.pk = pk;
+    
 	self.find = function() {
-		var qry = new Query("SELECT * FROM " + self.name, self).parseArgs(arguments);
-		return db.all( qry );
+		return new Query("SELECT * FROM " + self.name, self).parseArgs(arguments);
 	};
 	
 	self.first = function() {
-		var qry = new Query("SELECT * FROM " + self.name, self).parseArgs(arguments).first();
-		return db.get( qry );
+		return new Query("SELECT * FROM " + self.name, self).parseArgs(arguments).first();
 	};
 	
 	self.last = function() {
-		var qry = new Query("SELECT * FROM " + self.name, self).parseArgs(arguments).last();
-		return db.get( qry );
+		return new Query("SELECT * FROM " + self.name, self).parseArgs(arguments).last();
 	};
 
 	self.count = function(where) {
-		var qry = new Query("SELECT COUNT(1) as count FROM " + self.name, self).where(where).first();
-		return db.get( qry );
+		return new Query("SELECT COUNT(1) as count FROM " + self.name, self).where(where).first();
 	};
 	
 	self.all = function() {
-		var qry = new Query("SELECT * FROM " + self.name, self);
-		return db.all( qry );
+		return new Query("SELECT * FROM " + self.name, self);
 	};
 	
 	self.insert = function(data) {
@@ -174,8 +161,7 @@ var Table = exports.Table = function (name, pk, db) {
 		}			
 		
 		sql += values.join(", ") + ")";
-		var qry = new Query(sql, self, params);
-		return db.run( qry );
+		return new Query(sql, self, params);
 	};
 	
 	self.update = function(fields, where){
@@ -192,8 +178,7 @@ var Table = exports.Table = function (name, pk, db) {
 		}		
 		
 		var sql = utils.format("UPDATE {0} SET {1}", self.name, values.join(', '));
-		var qry = new Query(sql, self, params).where(where);
-		return db.run( qry );
+		return new Query(sql, self, params).where(where);
 	};
 	
 	self.save = function(data) {
@@ -209,93 +194,68 @@ var Table = exports.Table = function (name, pk, db) {
 	}
 	
 	self.remove = function() {
-		var qry = new Query("DELETE FROM " + self.name, self, []).parseArgs(arguments);
-		return db.run( qry );
+		return new Query("DELETE FROM " + self.name, self, []).parseArgs(arguments);
 	};
 };
 
-
-exports.db = function(file, mode) {
-	var self = this;
-	var fnDb = function(file, mode, cb) {
-		return new sqlite3.Database(file, mode, cb);
-	}
-	
-	self.tables = [];
-	self.cs = { 
-			//sql types
-			pk: 'pk', text: 'text', integer: 'integer', numeric: 'numeric', date: 'date', bool: 'boolean', 
-		};
-		
-	self.modelsTableSchema = {
-		model: 'text'				
-	};
-	
-	self.model = {
-		tables: {}
-	};
-	
-	self.run = function ( qry ) {
-		
-	}
-	
-	self.inspect = function(cb) {
-		self.client.all('SELECT name FROM sqlite_master WHERE type="table";', [], function(err, tables) {
+exports.db = function(file, mode, cb) {
+    
+	var self = new sqlite3.Database(file, mode, cb);
+    
+    self.inspect = function(cb) {
+		self.all('SELECT name FROM sqlite_master WHERE type="table";', function(err, tables) {
 			if(err && cb) cb(err);
 			else {
 				for(var i=0; i<tables.length; i++) {
-					var tableName = tables[i].name;
-					self[tableName] = new Table(tableName, 'id');
+					var table = new Table(tables[i].name, 'id');                    
+					self[tables[i].name] = table;
+                    self.tables.push(table);
 				}
-				self.tables = tables;
-				cb(tables);
+				
+				cb(null, tables);
 			}
 		});
-	}
-	
-	var _translateType = function (typeName) {
+	}    
+    
+    // Schema helper methods
+	self.tables = [];
+    function _translateType(typeName) {
 		var _result = typeName;
 
 		switch (typeName) {
 		case "pk":
-			_result = "INTEGER PRIMARY KEY  AUTOINCREMENT";
+			_result = "INTEGER PRIMARY KEY AUTOINCREMENT";
 			break;
 		case "int":
 			_result = "INTEGER";
 			break;
 		case "decimal":
-			_result = "numeric";
+			_result = "NUMERIC";
 			break;
 		case "date":
-			_result = "datetime";
+			_result = "DATETIME";
 			break;
 		case "text":
-			_result = "text";
+			_result = "TEXT";
 			break;
 		case "boolean":
-			_result = "boolean";
+			_result = "BOOLEAN";
 			break;
 		}
 		return _result;
 	};
-	
-	var run = self.run = function(query, cb) {
-		self.client.run(query.sql, query.params, cb);
-		return self;
-	}
-	
-	self.dropTable = function (tableName) {
-		return new Query("DROP TABLE IF EXISTS " + tableName);
-	};	
-		
-	var _createColumn = function (columnName, columnProps) {        
+	function _createColumn(columnName, columnProps) {        
 		if(utils.isString(columnProps)) {
 			return columnName + " " + _translateType(columnProps);
 		}
 		return columnName + " " + _translateType(columnProps.type) +
 			( columnProps.required ? " NOT NULL" : "" ) +
 			( columnProps.unique ? " UNIQUE" : "");        
-	};
+	};	
+	
+	self.dropTable = function (tableName) {
+		return new Query("DROP TABLE IF EXISTS " + tableName);
+	};	
 
 	self.createTable = function (tableName, columns, force) {
 
@@ -305,8 +265,8 @@ exports.db = function(file, mode) {
 		_cols.push( _createColumn( 'id', "pk" ) );
 		for (var c in columns) {
 			if (c === "timestamps") {
-				_cols.push("created_at int");
-				_cols.push("updated_at int");
+				_cols.push("created_at INTEGER");
+				_cols.push("updated_at INTEGER");
 			} else if (c !== 'id') {
 				_cols.push( _createColumn( c, columns[c] ) );
 			}
@@ -320,25 +280,44 @@ exports.db = function(file, mode) {
 	self.createColumn = function(tableName, columnName, columnProps) {		
 		return new Query("ALTER TABLE " + tableName + " ADD COLUMN " + _createColumn( columnName, columnProps ));
 	};
-		
-	self.createModelsTable = function() {
-		return createTable('_models', self.modelsTableSchema, false /* if not exists */);
+        
+    self.runQuery = function run(query, cb) {
+        return self.run(query.sql, query.params, cb);
+    }
+    self.getQuery = function get(query, cb) {
+        return self.get(query.sql, query.params, cb);
+    }
+    
+    var modelsTableSchema = {
+		model: 'text'				
 	};
 	
-	this.loadModel = function(cb) {
-			var p = self.createModelsTable();
-					.then( function( res, tx ) {
-						self._models = new websql.Table("_models", "id", self);
-						return self._models.last(tx);
-					})
-					.then( function(modelAsJson, tx) {
-						if(modelAsJson) {
-							self.model = JSON.parse(modelAsJson.model);	
-						}					
-						return self.forward(self.newModel, tx);						
-					});		
-			return p;
-		};
+	self.model = {
+		tables: {}
+	};
+		
+	self.createModelsTable = function() {
+		return self.createTable('_models', modelsTableSchema, false );
+	};
+	
+	self.loadModel = function(cb) {
+        utils.waterfall([
+            function(next) { 
+                self.runQuery(self.createModelsTable(), next); 
+            },
+            function(next) { 
+                self._models = new Table("_models", "id");
+                self.getQuery(self._models.last(), next);                  
+            },
+            function(modelAsJson, next) { 
+                self.model = JSON.parse(modelAsJson.model);
+                next(null, self.model);
+            }
+            
+        ], cb);
+        
+        return self;
+	}
 	
 	return self;
 }
