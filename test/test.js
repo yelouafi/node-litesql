@@ -294,13 +294,15 @@ describe('litesql', function(){
             });                        
         });
         
-        describe('#loadModel', function() {     
-            var model = {
+        var model = {
                 tables : {
                     todos : { task: 'text' },
                     users: {  name: 'text'}
                 }
             }
+            
+        describe('#loadModel', function() {     
+            
             it('should load models table', function(done) {
                 db.serialize(function() {
                     db.runQuery( db.dropTable('_models') );  
@@ -317,6 +319,89 @@ describe('litesql', function(){
                 
                 
             });                        
+        });
+        
+        describe('#reloadModel', function() {     
+           
+            it('should reload models table', function(done) {
+                db.serialize(function() {
+                   db.reloadModel(function(err, dbModel) {                        
+                        assert.equal(err, null);
+                        assert.deepEqual(dbModel, model);
+                        done();
+                    })
+                    
+                });
+                
+                
+            });                        
+        });
+        
+        describe('#runQueries', function() {     
+           
+            it('should run queries in order', function(done) {                               
+                var todos = new litesql.Table('todos', 'id');
+                var queries = [ db.createTable('todos', model.tables.todos) ];
+                for(var i=1; i<=10; i++) {
+                    queries.push( todos.insert({ task: 'task '+ i }) );
+                }
+                db.runQueries(queries, function(err) {
+                    assert.equal(err, null);
+                    db.get( 'select count(1) as count from todos', [], function(err, count) {
+                        assert.equal(err, null);
+                        assert.equal(count.count, 10);
+                        done();
+                    });
+                });                                               
+            });                        
+        });
+    });
+
+    describe('recipe', function() {
+        var db = litesql.db(":memory:");
+        
+        var model = { 
+            tables: { 
+                todos: {
+                    task: 'text', duedate: 'date', completed: 'boolean'
+                }
+            }
+        }
+        
+        it( "should upgrade model", function(done) {	
+            utils.waterfall([
+                function(next) { db.runSqls(["drop table if exists _models", "drop table if exists contacts", "drop table if exists todos"], next); },
+                function(next) { db.upgrade(model, next);  },
+                function(res, next) { db.reloadModel( next);  },
+                function(res, next) { 
+                    deepEqual(db.model, model);//1
+                    model.tables.todos.amount = 'decimal';
+                    model.tables.contacts = {
+                        name: 'text', age: 'int'
+                    };
+                    db.upgrade(model, next);	
+                },
+                function(res, next) { 
+                    db.reloadModel( next);  
+                },
+                function(res, next) { 
+                    assert.deepEqual(db.model, model);	//2
+                    db.runQueries([
+                        db.todos.insert({ task: "task"}),
+                        db.contacts.insert({ name: "yassine"})
+                    ], next);		
+                },
+                function(next) {
+                    db.getQuery(db.contacts.first(), next);
+                },
+                function(res, next) {
+                    assert.equal(res.name, "yassine");//3
+                    next(null);
+                }],
+                function(err) {
+                    assert.equal(err, null);
+                    done();
+            });                                   
         });
     })
 });

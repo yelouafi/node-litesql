@@ -288,6 +288,37 @@ exports.db = function(file, mode, cb) {
         return self.get(query.sql, query.params, cb);
     }
     
+    self.relai = function relai(qry) {
+        return function() {
+            var args = utils.toArray(arguments);            
+            self.runQuery(qry, args[args.length-1]);
+        }
+    }
+    
+    self.runQueries = function (queries, cb) {
+        var fns = [];
+        
+        
+        for(var i=0; i<queries.length; i++) {
+            fns.push(self.relai(queries[i]));
+        }
+        utils.waterfall(fns, cb);    
+        return self;
+    }
+    
+    self.runSqls = function(sqls, cb) {
+        var queries = [];
+        for(var i=0; i<sqls.length; i++) {
+            queries.push(new Query(sqls[i]));
+        }
+        self.runQueries(queries, cb);
+        return self;
+    }
+    
+    self.allQuery = function get(query, cb) {
+        return self.all(query.sql, query.params, cb);
+    }
+    
     var modelsTableSchema = {
 		model: 'text'				
 	};
@@ -318,6 +349,66 @@ exports.db = function(file, mode, cb) {
         
         return self;
 	}
+    
+    self.reloadModel = function(cb) {
+        utils.waterfall([
+            function(next) { 
+                self.getQuery(self._models.last(), next);                  
+            },
+            function(modelAsJson, next) {
+                if(modelAsJson) {
+                    self.model = JSON.parse(modelAsJson.model);	
+                }					
+                next(null, self.model)	;
+            }
+        ], cb)
+        
+        return self;
+    };
+    
+    function buildUpgradeQueries(newModel) {
+        var queries = [];
+        for(var tableName in newModel.tables ) {
+            var table = newModel.tables[tableName];
+            if( ! utils.has( self.model.tables, tableName ) ) {
+                queries.push( self.createTable( tableName, table ) );
+            } else {
+                var oldColumns = self.model.tables[tableName];	
+                var newColumns = newModel.tables[tableName];
+                utils.each( newColumns, function (column, columnName) {
+                    if( ! utils.has(oldColumns, columnName) ) {
+                        queries.push( self.createColumn( tableName, columnName, column ) );
+                    }
+                });
+            }
+        }
+        return queries;
+    }
+    
+    self.upgrade = function(newModel, cb) {
+        utils.waterfall([
+            function(next) {  self.loadModel(next); },
+            function(model, next) {
+                var queries = buildUpgradeQueries(newModel);               
+                if(queries.length) {
+                    queries.push( self._models.insert( { model: JSON.stringify(newModel) }) );
+                    self.runQueries( queries, next );								
+                } else {
+                    next(null, model);
+                }
+            },
+            function(model, next) {
+                self.model = newModel;
+                utils.each( newModel.tables, function(table, tableName) {
+                    self[tableName] = new Table(tableName, "id");
+                });
+                next(null, model);
+            }
+        ], cb); 
+        
+        return self;
+    };
+
 	
 	return self;
 }
