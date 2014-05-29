@@ -1,9 +1,53 @@
 var assert = require("assert")
 var utils = require('../lib/utils');
 var litesql = require('../index');
+var sqlite = require('sqlite3').verbose();
 
 describe('litesql', function(){
-    
+/*
+    describe('sqlite3', function() {
+        describe('#serialize', function() {
+            it('should not permit other queries to intermix with those in #serialize', function(done) {
+                var db = new sqlite.Database(':memory:');
+                db.run('create table todos (task text)', function(err, cb) {
+                    db.serialize(function() {
+                        db.run('BEGIN');
+                        console.log('insert 1');
+                        db.run('insert into todos(task) values("my task 1")');   
+                        db.all('select * from todos', function(err, res) {
+                            console.log('before rollback ');
+                            console.log(res);                                                               
+                        })
+                        setImmediate(function() {
+                            console.log('rollback');
+                            db.run('ROLLBACK', function() {
+                                db.all('select * from todos', function(err, res) {
+                                    console.log('after rollback ');
+                                    console.log(res);
+                                    assert.equal(res.length, 1);
+                                    done()
+                                    
+                                })
+                            }); 
+                       });                       
+                    });
+                    console.log('insert 2');
+                    db.run('insert into todos(task) values("my task 2")', function(err, res) {
+                        db.all('select * from todos', function(err, res) {
+                             console.log('out of rollback ')
+                            console.log(res);
+                        })
+                       
+                    })
+                    
+                    
+                    
+                })
+                
+            })
+        })
+    })
+ */  
     describe('utils', function(){
         describe('#format', function() {
             it('should format "one {0} tow {1}" to "one 0 tow 1" given params(0,1) ', function() {
@@ -260,15 +304,19 @@ describe('litesql', function(){
         });
         
         describe('#createTable', function() {            
-            it('should build "CREATE TABLE IF NOT EXISTS table(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, age INTEGER NOT NULL)" on the given sql statement', function() {    
+            it('should build "CREATE TABLE IF NOT EXISTS table(id INTEGER PRIMARY KEY AUTOINCREMENT..." on the given sql statement', function() {    
                 var qry = db.createTable('table', {
                     name  : { type: 'text', unique: true},
                     age   : { type: 'int', required: true},
                     salary: 'decimal',
                     birthDate: 'date',
-                    single  : 'boolean'
+                    single  : 'boolean',
+                    refId: '#ref',
+                    refId2: '#ref2'
                 });            
-                var sql = 'CREATE TABLE IF NOT EXISTS table(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, age INTEGER NOT NULL, salary NUMERIC, birthDate DATETIME, single BOOLEAN)';
+                var sql = 'CREATE TABLE IF NOT EXISTS table(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, '+
+                            'age INTEGER NOT NULL, salary NUMERIC, birthDate DATETIME, single BOOLEAN, refId INTEGER, refId2 INTEGER, '+
+                            'FOREIGN KEY(refId) REFERENCES ref(id), FOREIGN KEY(refId2) REFERENCES ref2(id))';
                 assert.equal(qry.sql, sql);
             });                        
         });
@@ -301,10 +349,10 @@ describe('litesql', function(){
             
             it('should create the models table', function(done) {
                 db.serialize(function() {
-                    db.runQuery( db.createModelsTable() );                                                    
-                    var models = new litesql.Table('_models', 'id');
-                    db.runQuery( models.insert({ model: 'model'}) );
-                    db.getQuery( models.first(), function(err, model) {
+                    db.createModelsTable().run();                                                    
+                    var models = new litesql.Table('_models', 'id', db);
+                    models.insert({ model: 'model'}).run();
+                    models.first().get( function(err, model) {
                         assert.equal(err, null);
                         assert.equal(model.model, 'model');
                         done();
@@ -327,10 +375,10 @@ describe('litesql', function(){
             
             it('should load models table', function(done) {
                 db.serialize(function() {
-                    db.runQuery( db.dropTable('_models') );  
-                    db.runQuery( db.createModelsTable() );                                                    
-                    var models = new litesql.Table('_models', 'id');
-                    db.runQuery( models.insert({ model: JSON.stringify(model) }) );
+                    db.dropTable('_models').run();  
+                    db.createModelsTable().run();                                                    
+                    var models = new litesql.Table('_models', 'id', db);
+                    models.insert({ model: JSON.stringify(model) }).run();
                     db.loadModel(function(err, dbModel) {                        
                         assert.equal(err, null);
                         assert.deepEqual(dbModel, model);
@@ -362,7 +410,7 @@ describe('litesql', function(){
         describe('#runQueries', function() {     
            
             it('should run queries in order', function(done) {                               
-                var todos = new litesql.Table('todos', 'id');
+                var todos = new litesql.Table('todos', 'id', db);
                 var queries = [ db.createTable('todos', model.tables.todos) ];
                 for(var i=1; i<=10; i++) {
                     queries.push( todos.insert({ task: 'task '+ i }) );
@@ -378,8 +426,7 @@ describe('litesql', function(){
             });                        
         });
     });
-	
-	
+		
     describe('recipe', function() {
         var db = litesql.db(":memory:");
         
@@ -416,7 +463,7 @@ describe('litesql', function(){
                     ], next);		
                 },
                 function(next) {
-                    db.getQuery(db.contacts.first(), next);
+                    db.contacts.first().get(next);
                 },
                 function(res, next) {
                     assert.equal(res.name, "yassine");//3
@@ -428,5 +475,6 @@ describe('litesql', function(){
             });                                   
         });
     })
+
 });
 

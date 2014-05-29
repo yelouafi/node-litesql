@@ -3,7 +3,7 @@ var utils = require('./lib/utils');
 
 var placeholder = '?';
 
-var Query = exports.Query = function(sql, table, params) {
+var Query = exports.Query = function(sql, table, params, db) {
 
     var operationsMap = {
         '=': '=',
@@ -117,32 +117,60 @@ var Query = exports.Query = function(sql, table, params) {
         self.sql = "select * from " + self.table.name;
         return self.parseArgs(arguments);			
     };
+    
+    self.run = function(cb) {
+        if(!db) throw Error('can\'t run, db unefined!');
+        db.run(self.sql, self.params, cb);
+    }
+    
+    self.all = function(cb) {
+        if(!db) throw Error('can\'t run, db unefined!');
+        db.all(self.sql, self.params, cb);
+    }
+    
+    self.each = function(cb, complete) {
+        if(!db) throw Error('can\'t run, db unefined!');
+        db.each(self.sql, self.params, cb, complete);
+    }
+    
+    self.get = function(cb) {
+        if(!db) throw Error('can\'t run, db unefined!');
+        db.get(self.sql, self.params, function(err, res) {
+            if(cb)
+                cb(err, res); //ensure cb called with 2 args; see issue #299 : https://github.com/mapbox/node-sqlite3/issues/299
+        });
+    }
+    
+    self.prepare = function(cb) {
+        if(!db) throw Error('can\'t run, db unefined!');
+        return db.prepare(self.sql, self.params, cb);
+    }
 	
 };
 
-var Table = exports.Table = function (name, pk) {
+var Table = exports.Table = function (name, pk, db) {
 	var self = this;
 	self.name = name;
     self.pk = pk;
     
 	self.find = function() {
-		return new Query("SELECT * FROM " + self.name, self).parseArgs(arguments);
+		return new Query("SELECT * FROM " + self.name, self, [], db).parseArgs(arguments);
 	};
 	
 	self.first = function() {
-		return new Query("SELECT * FROM " + self.name, self).parseArgs(arguments).first();
+		return new Query("SELECT * FROM " + self.name, self, [], db).parseArgs(arguments).first();
 	};
 	
 	self.last = function() {
-		return new Query("SELECT * FROM " + self.name, self).parseArgs(arguments).last();
+		return new Query("SELECT * FROM " + self.name, self, [], db).parseArgs(arguments).last();
 	};
 
 	self.count = function(where) {
-		return new Query("SELECT COUNT(1) as count FROM " + self.name, self).where(where).first();
+		return new Query("SELECT COUNT(1) as count FROM " + self.name, self, [], db).where(where).first();
 	};
 	
 	self.all = function() {
-		return new Query("SELECT * FROM " + self.name, self);
+		return new Query("SELECT * FROM " + self.name, self, [], db);
 	};
 	
 	self.insert = function(data) {
@@ -161,7 +189,7 @@ var Table = exports.Table = function (name, pk) {
 		}			
 		
 		sql += values.join(", ") + ")";
-		return new Query(sql, self, params);
+		return new Query(sql, self, params, db);
 	};
 	
 	self.update = function(fields, where){
@@ -178,7 +206,7 @@ var Table = exports.Table = function (name, pk) {
 		}		
 		
 		var sql = utils.format("UPDATE {0} SET {1}", self.name, values.join(', '));
-		return new Query(sql, self, params).where(where);
+		return new Query(sql, self, params, db).where(where);
 	};
 	
 	self.save = function(data) {
@@ -195,7 +223,7 @@ var Table = exports.Table = function (name, pk) {
 	}
 	
 	self.remove = function() {
-		return new Query("DELETE FROM " + self.name, self, []).parseArgs(arguments);
+		return new Query("DELETE FROM " + self.name, self, [], db).parseArgs(arguments);
 	};
 };
 
@@ -208,7 +236,7 @@ exports.db = function(file, mode, cb) {
 			if(err && cb) cb(err);
 			else {
 				for(var i=0; i<tables.length; i++) {
-					var table = new Table(tables[i].name, 'id');                    
+					var table = new Table(tables[i].name, 'id', self);                    
 					self[tables[i].name] = table;
                     self.tables.push(table);
 				}
@@ -221,67 +249,130 @@ exports.db = function(file, mode, cb) {
     // Schema helper methods
 	self.tables = [];
     function _translateType(typeName) {
-		var _result = typeName;
-
-		switch (typeName) {
-		case "pk":
-			_result = "INTEGER PRIMARY KEY AUTOINCREMENT";
-			break;
-		case "int":
-			_result = "INTEGER";
-			break;
-		case "decimal":
-			_result = "NUMERIC";
-			break;
-		case "date":
-			_result = "DATETIME";
-			break;
-		case "text":
-			_result = "TEXT";
-			break;
-		case "boolean":
-			_result = "BOOLEAN";
-			break;
-		}
-		return _result;
+		        
+        // foreign key
+        if(utils.startsWith(typeName, '#')) {
+            var foreignTable  = typeName.substring(1);            
+            return { type: 'INTEGER', foreignTable: foreignTable, constraints:[]  };
+        } 
+        var rawType = typeName;
+        switch (typeName) {
+        case "pk":
+            rawType = "INTEGER PRIMARY KEY AUTOINCREMENT";
+            break;
+        case "int":
+            rawType = "INTEGER";
+            break;
+        case "decimal":
+            rawType = "NUMERIC";
+            break;
+        case "date":
+            rawType = "DATETIME";
+            break;
+        case "text":
+            rawType = "TEXT";
+            break;
+        case "boolean":
+            rawType = "BOOLEAN";
+            break;
+        }
+        return { type: rawType, constraints:[] };
+        
 	};
-	function _createColumn(columnName, columnProps) {        
+    
+	function _createColumn(columnName, columnProps) {   
+        var result = null;
 		if(utils.isString(columnProps)) {
-			return columnName + " " + _translateType(columnProps);
-		}
-		return columnName + " " + _translateType(columnProps.type) +
-			( columnProps.required ? " NOT NULL" : "" ) +
-			( columnProps.unique ? " UNIQUE" : "");        
+            result = _translateType(columnProps);	            
+		} else {
+            result = _translateType(columnProps.type);            
+            if( columnProps.required)  result.constraints.push("NOT NULL");
+            if( columnProps.unique)  result.constraints.push("UNIQUE");
+        }
+		return result;
 	};	
 	
 	self.dropTable = function (tableName) {
-		return new Query("DROP TABLE IF EXISTS " + tableName);
+		return new Query("DROP TABLE IF EXISTS " + tableName, null, [], self);
 	};	
 
 	self.createTable = function (tableName, columns, force) {
+        var _sql = "CREATE TABLE " + ( (!force) ? "IF NOT EXISTS " : "" ) + tableName + "(";
+        var _sqlFkey = "FOREIGN KEY({0}) REFERENCES {1}(id)";
+		var _cols = [], _fkeys = [];	
+        
+        function addColumn(name, def) {
+            var col = _createColumn( name, def );
+            //console.log(col)
+            _cols.push(name + ' ' + col.type + ( col.constraints.length ? ' ' + col.constraints.join(' ') : '' ));
+            if(col.foreignTable) {
+                _fkeys.push( utils.format( _sqlFkey, name, col.foreignTable ));
+            }
+        }
 
-		var _sql = "CREATE TABLE " + ( (!force) ? "IF NOT EXISTS " : "" ) + tableName + "(";
-		var _cols = [];			
-
-		_cols.push( _createColumn( 'id', "pk" ) );
+		addColumn( 'id', "pk" );
 		for (var c in columns) {
 			if (c === "timestamps") {
-				_cols.push("created_at INTEGER");
-				_cols.push("updated_at INTEGER");
+				addColumn("created_at", "INTEGER");
+				addColumn("updated_at", "INTEGER");
 			} else if (c !== 'id') {
-				_cols.push( _createColumn( c, columns[c] ) );
+				addColumn(c, columns[c]);
 			}
 		}
 
 
-		_sql += _cols.join(", ") + ")";
-		return new Query(_sql);		
+		_sql += _cols.join(", ") + (_fkeys.length ? (", " + _fkeys.join(", ")) : "") + ")";
+		return new Query(_sql, null, [], self);		
 	};
 		
-	self.createColumn = function(tableName, columnName, columnProps) {		
-		return new Query("ALTER TABLE " + tableName + " ADD COLUMN " + _createColumn( columnName, columnProps ));
+	self.createColumn = function(tableName, columnName, columnProps) {	
+        var col = _createColumn( columnName, columnProps );
+        var colstr = columnName + ' ' + col.type + ' ' + col.constraints;
+		return new Query("ALTER TABLE " + tableName + " ADD COLUMN " + colstr, null, [], self);
 	};
+    
+    self.begin = function(cb) {
+        db.run('BEGIN');
+    }
+    
+    self.commit = function(cb) {
+        db.run('COMMIT');
+    }
+    
+    self.rollback = function(cb) {
+        db.run('rollback');
+    }
+    
+    self.relai = function relai(qry) {
+        return function() {
+            var args = utils.toArray(arguments);            
+            qry.run(args[args.length-1]);
+        }
+    }
+    
+    self.runQueries = function (queries, cb) {
+        var fns = [];
         
+        
+        for(var i=0; i<queries.length; i++) {
+            fns.push(self.relai(queries[i]));
+        }
+        utils.waterfall(fns, cb);    
+        return self;
+    }
+    
+    self.runSqls = function(sqls, cb) {
+        var queries = [];
+        for(var i=0; i<sqls.length; i++) {
+            queries.push(new Query(sqls[i], null, [], self));
+        }
+        self.runQueries(queries, cb);
+        return self;
+    }
+    
+    
+    
+    /*
     self.runQuery = function run(query, cb) {
         return self.run(query.sql, query.params, cb);
     }
@@ -326,7 +417,7 @@ exports.db = function(file, mode, cb) {
     self.allQuery = function get(query, cb) {
         return self.all(query.sql, query.params, fixArgsFwd(cb));
     }
-    
+    */
     var modelsTableSchema = {
 		model: 'text'				
 	};
@@ -342,11 +433,11 @@ exports.db = function(file, mode, cb) {
 	self.loadModel = function(cb) {
         utils.waterfall([
             function(next) { 
-                self.runQuery(self.createModelsTable(), next); 
+                self.createModelsTable().run(next); 
             },
             function(next) { 
-				self._models = new Table("_models", "id");
-                self.getQuery(self._models.last(), next);                  
+				self._models = new Table("_models", "id", self);
+                self._models.last().get(next);                  
             },
             function(modelAsJson, next) {
 				if(modelAsJson && modelAsJson.model) {
@@ -363,7 +454,7 @@ exports.db = function(file, mode, cb) {
     self.reloadModel = function(cb) {
         utils.waterfall([
             function(next) { 
-                self.getQuery(self._models.last(), next);                  
+               self._models.last().get(next);                  
             },
             function(modelAsJson, next) {
                 if(modelAsJson) {
@@ -413,7 +504,7 @@ exports.db = function(file, mode, cb) {
             function(next) {
                 self.model = newModel;
                 utils.each( newModel.tables, function(table, tableName) {
-                    self[tableName] = new Table(tableName, "id");
+                    self[tableName] = new Table(tableName, "id", self);
                 });
                 next(null, self.model);
             }
@@ -421,7 +512,6 @@ exports.db = function(file, mode, cb) {
         
         return self;
     };
-
 	
 	return self;
 }
