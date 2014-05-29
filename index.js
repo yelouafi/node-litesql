@@ -186,7 +186,8 @@ var Table = exports.Table = function (name, pk) {
 			throw Error("Save requires a hash of fields=>values to update to");
 		}
 		if( utils.has(data, 'id') ) {
-			var id = delete data.id;
+			var id = data.id;
+            delete data.id;
 			return self.update(data, id);
 		} else {
 			return self.insert(data);
