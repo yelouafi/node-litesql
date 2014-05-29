@@ -284,8 +284,15 @@ exports.db = function(file, mode, cb) {
     self.runQuery = function run(query, cb) {
         return self.run(query.sql, query.params, cb);
     }
+	
+	function fixArgsFwd(cb) {
+		return function(err, res) {
+			cb(err, res);
+		}
+	}
+	
     self.getQuery = function get(query, cb) {
-        return self.get(query.sql, query.params, cb);
+        return self.get(query.sql, query.params, fixArgsFwd(cb));
     }
     
     self.relai = function relai(qry) {
@@ -316,7 +323,7 @@ exports.db = function(file, mode, cb) {
     }
     
     self.allQuery = function get(query, cb) {
-        return self.all(query.sql, query.params, cb);
+        return self.all(query.sql, query.params, fixArgsFwd(cb));
     }
     
     var modelsTableSchema = {
@@ -337,11 +344,13 @@ exports.db = function(file, mode, cb) {
                 self.runQuery(self.createModelsTable(), next); 
             },
             function(next) { 
-                self._models = new Table("_models", "id");
+				self._models = new Table("_models", "id");
                 self.getQuery(self._models.last(), next);                  
             },
-            function(modelAsJson, next) { 
-                self.model = JSON.parse(modelAsJson.model);
+            function(modelAsJson, next) {
+				if(modelAsJson && modelAsJson.model) {
+					self.model = JSON.parse(modelAsJson.model);
+				}
                 next(null, self.model);
             }
             
@@ -387,22 +396,25 @@ exports.db = function(file, mode, cb) {
     
     self.upgrade = function(newModel, cb) {
         utils.waterfall([
-            function(next) {  self.loadModel(next); },
+            function(next) { 
+				self.loadModel(next); 
+			},
             function(model, next) {
+				//console.log('upgrade2 '+JSON.stringify(model));
                 var queries = buildUpgradeQueries(newModel);               
                 if(queries.length) {
                     queries.push( self._models.insert( { model: JSON.stringify(newModel) }) );
                     self.runQueries( queries, next );								
                 } else {
-                    next(null, model);
+                    next(null);
                 }
             },
-            function(model, next) {
+            function(next) {
                 self.model = newModel;
                 utils.each( newModel.tables, function(table, tableName) {
                     self[tableName] = new Table(tableName, "id");
                 });
-                next(null, model);
+                next(null, self.model);
             }
         ], cb); 
         

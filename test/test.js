@@ -57,6 +57,28 @@ describe('litesql', function(){
                 });
                 
             });
+			
+			it('should forward even undefined args ', function(done) {
+                utils.waterfall( [
+                    function(cb) {
+                        cb(null, "fn1");
+                    },
+                    function(arg, cb) {
+                        assert.equal(arg, 'fn1');
+                        cb(null, undefined);
+                    },
+                    function(arg1, cb) {
+                        assert.equal(typeof arg1, 'undefined');
+                        cb(null, 'done');
+                    }],
+                    
+                function(err, arg) {
+                    assert.equal(err, null);   
+					assert.equal(arg, 'done');   
+                    done();
+                });
+                
+            });
         });
         
     });
@@ -356,7 +378,8 @@ describe('litesql', function(){
             });                        
         });
     });
-
+	
+	
     describe('recipe', function() {
         var db = litesql.db(":memory:");
         
@@ -369,12 +392,13 @@ describe('litesql', function(){
         }
         
         it( "should upgrade model", function(done) {	
+			
             utils.waterfall([
                 function(next) { db.runSqls(["drop table if exists _models", "drop table if exists contacts", "drop table if exists todos"], next); },
                 function(next) { db.upgrade(model, next);  },
                 function(res, next) { db.reloadModel( next);  },
                 function(res, next) { 
-                    deepEqual(db.model, model);//1
+                    assert.deepEqual(db.model, model);//1
                     model.tables.todos.amount = 'decimal';
                     model.tables.contacts = {
                         name: 'text', age: 'int'
