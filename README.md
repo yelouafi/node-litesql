@@ -6,9 +6,11 @@ work was based upon the [massive-js][massive] library. massivejs is a nodejs mod
 
 [massive]: https://github.com/robconery/massive-js
 
-basically, litesql intends to brings the same interface into sqlite database. undeway the module use the [sqlite3][sqlite3]
+basically, litesql intends to brings the same interface into sqlite database. undeway the module use the [sqlite3][sqlite3] module, meaning you can access all the functions it offers.
 
 [sqlite3]: https://github.com/mapbox/node-sqlite3
+
+Of course you may also use the additional facilities this module offers (otherwise, you wouldn't be here, right?)
 
 ## Getting started
 
