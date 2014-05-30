@@ -210,7 +210,7 @@ var Table = exports.Table = function (name, pk, db) {
 	};
 	
 	self.save = function(data) {
-		if(utils.isObject(fields) === false) {
+		if(utils.isObject(data) === false) {
 			throw Error("Save requires a hash of fields=>values to update to");
 		}
 		if( utils.has(data, 'id') ) {
