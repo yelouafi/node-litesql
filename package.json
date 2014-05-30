@@ -11,10 +11,7 @@
   },
   "main": "./lib/index.js",
   "keywords": [
-    "sql",
-    "sqlite",
-    "litesql",
-    "node"
+    "sql", "sqlite", "litesql", "node", "nodejs", "database", "db"
   ],
   "author": "Yassine Elouafi <yelouafi@gmail.com>",
   "license": "MIT",
