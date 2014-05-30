@@ -288,6 +288,8 @@ exports.db = function(file, mode, cb) {
             result = _translateType(columnProps.type);            
             if( columnProps.required)  result.constraints.push("NOT NULL");
             if( columnProps.unique)  result.constraints.push("UNIQUE");
+            if( utils.isDef(columnProps.defaultValue))  result.constraints.push("DEFAULT "+columnProps.defaultValue);
+            if( columnProps.check)  result.constraints.push("CHECK ("+columnProps.check + ")");
         }
 		return result;
 	};	

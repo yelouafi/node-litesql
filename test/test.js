@@ -306,16 +306,16 @@ describe('litesql', function(){
         describe('#createTable', function() {            
             it('should build "CREATE TABLE IF NOT EXISTS table(id INTEGER PRIMARY KEY AUTOINCREMENT..." on the given sql statement', function() {    
                 var qry = db.createTable('table', {
-                    name  : { type: 'text', unique: true},
-                    age   : { type: 'int', required: true},
+                    name  : { type: 'text', unique: true, required: true},
+                    age   : { type: 'int', defaultValue: 0, check: 'age >= 0'},
                     salary: 'decimal',
-                    birthDate: 'date',
+                    birthDate: { type: 'date', defaultValue: 'CURRENT_DATE' },
                     single  : 'boolean',
                     refId: '#ref',
                     refId2: '#ref2'
                 });            
-                var sql = 'CREATE TABLE IF NOT EXISTS table(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, '+
-                            'age INTEGER NOT NULL, salary NUMERIC, birthDate DATETIME, single BOOLEAN, refId INTEGER, refId2 INTEGER, '+
+                var sql = 'CREATE TABLE IF NOT EXISTS table(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, '+
+                            'age INTEGER DEFAULT 0 CHECK (age >= 0), salary NUMERIC, birthDate DATETIME DEFAULT CURRENT_DATE, single BOOLEAN, refId INTEGER, refId2 INTEGER, '+
                             'FOREIGN KEY(refId) REFERENCES ref(id), FOREIGN KEY(refId2) REFERENCES ref2(id))';
                 assert.equal(qry.sql, sql);
             });                        
