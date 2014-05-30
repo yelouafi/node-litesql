@@ -41,10 +41,10 @@ describe('recipes', function(){
     });
     
     it('should update the first task by id', function(done) {     
-            
+        
+        // update by id (primary key)
         todos.update({ task: 'have to finish this' }, 1).run();
         todos.find(1).get(function(err, todo) {
-            //assert.equal(err, null);
             assert.equal(todo.task, 'have to finish this');
             done();
         });
@@ -63,7 +63,7 @@ describe('recipes', function(){
     });
     
     it('should insert the new todo', function(done) {   
-     
+        // will insert a new record, since there is no pk field
         todos.save({ task: 'give me more examples', completed: false }).run();
         todos.find({ task: 'give me more examples' }).all(function(err, tasks) {
             //assert.equal(err, null);
@@ -74,7 +74,7 @@ describe('recipes', function(){
     });
     
     it('should update todo with id #1', function(done) {   
-     
+        // will update an existing record, since we have specified the pk field
         todos.save({ id: '1', task: 'first of firsts' }).run();
         todos.find(1).get(function(err, todo) {
             //assert.equal(err, null);
@@ -84,7 +84,7 @@ describe('recipes', function(){
         
     });
     
-    it('should remove id #1', function(done) {   
+    it('should remove id #10 function(done) {   
      
         todos.remove(10).run();
         todos.find(10).all(function(err, todos) {

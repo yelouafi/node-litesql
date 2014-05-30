@@ -213,9 +213,9 @@ var Table = exports.Table = function (name, pk, db) {
 		if(utils.isObject(data) === false) {
 			throw Error("Save requires a hash of fields=>values to update to");
 		}
-		if( utils.has(data, 'id') ) {
-			var id = data.id;
-            delete data.id;
+		if( utils.has(data, pk) ) {
+			var id = data[pk];
+            delete data[pk];
 			return self.update(data, id);
 		} else {
 			return self.insert(data);
@@ -372,54 +372,6 @@ exports.db = function(file, mode, cb) {
         return self;
     }
     
-    
-    
-    /*
-    self.runQuery = function run(query, cb) {
-        return self.run(query.sql, query.params, cb);
-    }
-	
-	function fixArgsFwd(cb) {
-		return function(err, res) {
-			cb(err, res);
-		}
-	}
-	
-    self.getQuery = function get(query, cb) {
-        return self.get(query.sql, query.params, fixArgsFwd(cb));
-    }
-    
-    self.relai = function relai(qry) {
-        return function() {
-            var args = utils.toArray(arguments);            
-            self.runQuery(qry, args[args.length-1]);
-        }
-    }
-    
-    self.runQueries = function (queries, cb) {
-        var fns = [];
-        
-        
-        for(var i=0; i<queries.length; i++) {
-            fns.push(self.relai(queries[i]));
-        }
-        utils.waterfall(fns, cb);    
-        return self;
-    }
-    
-    self.runSqls = function(sqls, cb) {
-        var queries = [];
-        for(var i=0; i<sqls.length; i++) {
-            queries.push(new Query(sqls[i]));
-        }
-        self.runQueries(queries, cb);
-        return self;
-    }
-    
-    self.allQuery = function get(query, cb) {
-        return self.all(query.sql, query.params, fixArgsFwd(cb));
-    }
-    */
     var modelsTableSchema = {
 		model: 'text'				
 	};

@@ -33,6 +33,7 @@ db.serialize(function() {
         {   
             // shortcut for id INTEGER PRIMARY KEY AUTOINCREMENT                                           
             id: 'pk',    
+            num: 'int',
             
             // column definition can be an object too; you can pass it also 'unique: true'
             task: { type: 'text', required: true },  
@@ -52,11 +53,10 @@ db.serialize(function() {
     var todos = new litesql.Table('todos', 'id', db);
     
     for(var i = 1; i <= 10; i++) {
-        todos.insert({ task: 'Task #'+i, duedate: new Date(), completed: false }).run();
+        todos.insert({ num: i,  task: 'Task #'+i, duedate: new Date(), completed: false }).run();
     }
     
-    todos.find().all( function(err, tasks){
-        assert.equal(err, null);
+    todos.find().all( function(err, tasks){        
         assert.equal(tasks.length, 10);    
     });
     
@@ -66,5 +66,74 @@ So basically, it works always the way you've seen it
 - Construct a query via helper methods and classes
 - then execute the query using methods like you are used to ( run, get, all, each )
 
-## Documentation
-More to come soon; for now, you may take a look on the tests to see how it's been used
+## CRUD methods
+
+We've already seen insert; following how to update an existing record given its primary key; usually (but not necessary) an 'id' column;
+```javascript
+
+db.serialize(function() {
+    // update by pk (id = 1)
+    todos.update({ task: 'have to finish this' }, 1 /* pk */).run();
+    
+    // and also find by pk (id = 1)
+    todos.find(1).get(function(err, todo) {
+        assert.equal(todo.task, 'have to finish this');
+    });
+});
+```
+You can also update by another condition; here we update all records with num <= 5
+```javascript
+db.serialize(function() {
+    // update all completed todos
+    // set compteted = true on all records with num <= 5
+    todos.update({ completed: true }, { 'num <=': 5 }).run();
+    
+    // we can also call #find with an object hash for conditions
+    todos.find({ completed: true }).all(function(err, completedTasks) {
+        assert.equal(completedTasks.length, 5);        
+    });
+});
+```
+Another way to insert a new record is via the #save method
+```javascript
+db.serialize(function() {
+    // will insert a new record, since there is no pk field
+    todos.save({ task: 'give me more examples', completed: false }).run();
+    todos.find({ task: 'give me more examples' }).all(function(err, tasks) {
+        assert.equal(tasks.length, 1);       
+    });
+});
+```
+
+You can use #save to update an existing record as well. Just include the pk field
+```javascript
+db.serialize(function() {
+    // will update an existing record, since we have specified the pk field
+    todos.save({ id: '1', task: 'first of firsts' }).run();
+    todos.find(1).get(function(err, todo) {
+        assert.equal(todo.task, 'first of firsts');       
+    });
+});
+```
+We use #remove to delete an existing record; below we remove by the pk field
+```javascript
+db.serialize(function() {
+    // remove todo by pk (id=10)
+    todos.remove(10).run();
+    todos.find(10).all(function(err, todos) {
+        assert.equal(todos.length, 0);        
+    });
+});
+```
+As you may have already guessed, you can call #remove with more conditions; below we remove all tasks with completed=true
+```javascript
+db.serialize(function() {
+    // remove all completed tasks    
+    todos.remove({ completed: true }).run();
+    todos.find({ completed: true }).all(function(err, todos) {
+        assert.equal(todos.length, 0);       
+    });
+});
+```
+## Schema helper methods
+TBD
