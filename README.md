@@ -47,8 +47,7 @@ db.serialize(function() {
     
     todos.find().all( function(err, tasks){
         assert.equal(err, null);
-        assert.equal(tasks.length, 10);
-        done();
+        assert.equal(tasks.length, 10);    
     });
     
 })
