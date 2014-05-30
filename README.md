@@ -68,7 +68,7 @@ So basically, it works always the way you've seen it
 
 ## CRUD methods
 
-We've already seen insert; following how to update an existing record given its primary key; usually (but not necessary) an 'id' column;
+We've already seen `#insert`, following we use `#update` to update an existing record given its primary key; usually (but not necessary) an `id` column;
 ```javascript
 
 db.serialize(function() {
@@ -81,7 +81,7 @@ db.serialize(function() {
     });
 });
 ```
-You can also update by another condition; here we update all records with num <= 5
+You can also update by another condition; here we update all records with `num <= 5`
 ```javascript
 db.serialize(function() {
     // update all completed todos
@@ -94,7 +94,7 @@ db.serialize(function() {
     });
 });
 ```
-Another way to insert a new record is via the #save method
+Another way to insert a new record is via the `#save` method
 ```javascript
 db.serialize(function() {
     // will insert a new record, since there is no pk field
@@ -105,7 +105,7 @@ db.serialize(function() {
 });
 ```
 
-You can use #save to update an existing record as well. Just include the pk field
+You can use `#save` to update an existing record as well. Just include the pk field
 ```javascript
 db.serialize(function() {
     // will update an existing record, since we have specified the pk field
@@ -115,7 +115,7 @@ db.serialize(function() {
     });
 });
 ```
-We use #remove to delete an existing record; below we remove by the pk field
+We use `#remove` to delete an existing record; below we remove by the pk field
 ```javascript
 db.serialize(function() {
     // remove todo by pk (id=10)
@@ -125,7 +125,7 @@ db.serialize(function() {
     });
 });
 ```
-As you may have already guessed, you can call #remove with more conditions; below we remove all tasks with completed=true
+As you may have already guessed, you can call `#remove` with more conditions; below we remove all tasks with completed=true
 ```javascript
 db.serialize(function() {
     // remove all completed tasks    
