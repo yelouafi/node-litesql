@@ -10,7 +10,7 @@ basically, litesql intends to brings the same interface into sqlite database. un
 
 [sqlite3]: https://github.com/mapbox/node-sqlite3
 
-## Basic usage
+## Getting started
 
 install it
 ```
@@ -52,3 +52,5 @@ db.serialize(function() {
     
 })
 ```
+## Documentation
+More to come soon; for now, you may take a look on the tests to see how it's been used
