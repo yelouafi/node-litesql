@@ -85,7 +85,7 @@ describe('recipes', function(){
     });
     
     it('should remove id #10 function(done) {   
-     
+        // remove todo by pk (id=10)
         todos.remove(10).run();
         todos.find(10).all(function(err, todos) {
             //assert.equal(err, null);
@@ -96,7 +96,7 @@ describe('recipes', function(){
     });
     
     it('should remove all completed tasks', function(done) {   
-        
+        // remove all completed tasks
         todos.find({ completed: true }).all(function(err, completedTasks) {
             assert.equal(completedTasks.length, 5);            
         });
