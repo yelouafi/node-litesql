@@ -148,6 +148,7 @@ var Query = exports.Query = function(sql, table, params, db) {
 	
 };
 
+
 var Table = exports.Table = function (name, pk, db) {
 	var self = this;
 	self.name = name;
@@ -230,21 +231,21 @@ var Table = exports.Table = function (name, pk, db) {
 exports.db = function(file, mode, cb) {
     
 	var self = new sqlite3.Database(file, mode, cb);
-    
+    self.run('PRAGMA foreign_keys = ON;');
     self.inspect = function(cb) {
-		self.all('SELECT name FROM sqlite_master WHERE type="table";', function(err, tables) {
-			if(err && cb) cb(err);
-			else {
-				for(var i=0; i<tables.length; i++) {
-					var table = new Table(tables[i].name, 'id', self);                    
-					self[tables[i].name] = table;
+    self.all('SELECT name FROM sqlite_master WHERE type="table";', function(err, tables) {
+      if(err && cb) cb(err);
+      else {
+        for(var i=0; i<tables.length; i++) {
+          var table = new Table(tables[i].name, 'id', self);                    
+          self[tables[i].name] = table;
                     self.tables.push(table);
-				}
-				
-				cb(null, tables);
-			}
-		});
-	}    
+        }
+
+        cb(null, tables);
+      }
+    });
+  }    
     
     // Schema helper methods
 	self.tables = [];

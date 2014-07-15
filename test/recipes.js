@@ -84,7 +84,7 @@ describe('recipes', function(){
         
     });
     
-    it('should remove id #10 function(done) {   
+    it('should remove id #10', function(done) {   
         // remove todo by pk (id=10)
         todos.remove(10).run();
         todos.find(10).all(function(err, todos) {
@@ -109,5 +109,49 @@ describe('recipes', function(){
         
     });
     
+    
+});
+
+describe('check constraints', function() {
+    
+    var db = litesql.db(":memory:");
+    db.serialize(); // serialize all queries in this suite
+    db.createTable('contacts', { name: 'text' }).run();
+    db.createTable('todos', { task: 'text', contactId: '#contacts' }).run();
+    /*
+    db.run('create table contacts(id integer primary key, name text)');
+    db.run('create table todos( \
+                id integer primary key,\
+                task text, \
+                contactId integer not null REFERENCES contacts(id) \
+            )');
+    */
+    // helper class
+    var contacts = new litesql.Table('contacts', 'id', db);
+    var todos = new litesql.Table('todos', 'id', db);
+    
+    contacts.insert({id: 1, name: 'contact 1' }).run();
+    /*
+    it('should permit insert task without exisiting contact id', function(done) {
+        todos.insert({id: 1, task: 'task 1', contactId: 2 })
+             .run(function(err) {
+                 assert.equal(err, null);
+                 done();
+             });
+    });
+    */
+    it('should not permit insert task without exisiting contact id', function(done) {
+        //db.run('PRAGMA foreign_keys = ON;');
+        todos.insert({id: 2, task: 'task 1', contactId: 2 })
+             .run(function(err) {
+                 console.log(err);
+                 assert.notEqual(err, null);
+             });
+        todos.insert({id: 2, task: 'task 1', contactId: 1 })
+             .run(function(err) {
+                 assert.equal(err, null);
+                 done();
+             });
+    });
     
 })
