@@ -1,6 +1,8 @@
 var sqlite3 = require('sqlite3');
 var utils = require('./lib/utils');
 
+
+
 var placeholder = '?';
 
 var Query = exports.Query = function(sql, table, params, db) {
@@ -148,7 +150,6 @@ var Query = exports.Query = function(sql, table, params, db) {
 	
 };
 
-
 var Table = exports.Table = function (name, pk, db) {
 	var self = this;
 	self.name = name;
@@ -214,9 +215,9 @@ var Table = exports.Table = function (name, pk, db) {
 		if(utils.isObject(data) === false) {
 			throw Error("Save requires a hash of fields=>values to update to");
 		}
-		if( utils.has(data, pk) ) {
-			var id = data[pk];
-            delete data[pk];
+		if( utils.has(data, 'id') ) {
+			var id = data.id;
+            delete data.id;
 			return self.update(data, id);
 		} else {
 			return self.insert(data);
@@ -231,30 +232,33 @@ var Table = exports.Table = function (name, pk, db) {
 exports.db = function(file, mode, cb) {
     
 	var self = new sqlite3.Database(file, mode, cb);
-    self.run('PRAGMA foreign_keys = ON;');
+     self.run('PRAGMA foreign_keys = ON;');
     self.inspect = function(cb) {
-    self.all('SELECT name FROM sqlite_master WHERE type="table";', function(err, tables) {
-      if(err && cb) cb(err);
-      else {
-        for(var i=0; i<tables.length; i++) {
-          var table = new Table(tables[i].name, 'id', self);                    
-          self[tables[i].name] = table;
+		self.all('SELECT name FROM sqlite_master WHERE type="table";', function(err, tables) {
+			if(err && cb) cb(err);
+			else {
+				for(var i=0; i<tables.length; i++) {
+					var table = new Table(tables[i].name, 'id', self);                    
+					self[tables[i].name] = table;
                     self.tables.push(table);
-        }
-
-        cb(null, tables);
-      }
-    });
-  }    
+				}
+				
+				cb(null, tables);
+			}
+		});
+	}    
     
     // Schema helper methods
 	self.tables = [];
     function _translateType(typeName) {
 		        
-        // foreign key
-        if(utils.startsWith(typeName, '#')) {
-            var foreignTable  = typeName.substring(1);            
-            return { type: 'INTEGER', foreignTable: foreignTable, constraints:[]  };
+        // has many
+        if(utils.startsWith(typeName, '<')) {
+            return { type: 'INTEGER', foreignTable: typeName.substring(1), constraints:[], onDelete: 'CASCADE'  };
+        } 
+        // foreign keys
+        else if(utils.startsWith(typeName, '#')) {
+            return { type: 'INTEGER', foreignTable: typeName.substring(1), constraints:[], onDelete: 'RESTRICT'  };
         } 
         var rawType = typeName;
         switch (typeName) {
@@ -289,7 +293,7 @@ exports.db = function(file, mode, cb) {
             result = _translateType(columnProps.type);            
             if( columnProps.required)  result.constraints.push("NOT NULL");
             if( columnProps.unique)  result.constraints.push("UNIQUE");
-            if( utils.isDef(columnProps.defaultValue))  result.constraints.push("DEFAULT "+columnProps.defaultValue);
+            if( columnProps.defaultValue)  result.constraints.push("DEFAULT "+columnProps.defaultValue);
             if( columnProps.check)  result.constraints.push("CHECK ("+columnProps.check + ")");
         }
 		return result;
@@ -301,7 +305,7 @@ exports.db = function(file, mode, cb) {
 
 	self.createTable = function (tableName, columns, force) {
         var _sql = "CREATE TABLE " + ( (!force) ? "IF NOT EXISTS " : "" ) + tableName + "(";
-        var _sqlFkey = "FOREIGN KEY({0}) REFERENCES {1}(id)";
+        var _sqlFkey = "FOREIGN KEY({0}) REFERENCES {1}(id) ON DELETE {2}";
 		var _cols = [], _fkeys = [];	
         
         function addColumn(name, def) {
@@ -309,7 +313,7 @@ exports.db = function(file, mode, cb) {
             //console.log(col)
             _cols.push(name + ' ' + col.type + ( col.constraints.length ? ' ' + col.constraints.join(' ') : '' ));
             if(col.foreignTable) {
-                _fkeys.push( utils.format( _sqlFkey, name, col.foreignTable ));
+                _fkeys.push( utils.format( _sqlFkey, name, col.foreignTable, col.onDelete ) );
             }
         }
 
@@ -325,6 +329,7 @@ exports.db = function(file, mode, cb) {
 
 
 		_sql += _cols.join(", ") + (_fkeys.length ? (", " + _fkeys.join(", ")) : "") + ")";
+		//console.log(_sql)
 		return new Query(_sql, null, [], self);		
 	};
 		
@@ -333,17 +338,25 @@ exports.db = function(file, mode, cb) {
         var colstr = columnName + ' ' + col.type + ' ' + col.constraints;
 		return new Query("ALTER TABLE " + tableName + " ADD COLUMN " + colstr, null, [], self);
 	};
+	
+	self.createTrigger = function(table, trigger, statement) {
+	    var sql = 'CREATE TRIGGER ' + table + '_' + trigger + 
+	            '\nAFTER ' + trigger + ' ON ' + table + 
+	            '\nBEGIN ' + statement + '\nEND';
+	   //console.log(sql);
+	   return new Query(sql, null, [], self);
+	}
     
     self.begin = function(cb) {
-        db.run('BEGIN');
+        self.run('BEGIN');
     }
     
     self.commit = function(cb) {
-        db.run('COMMIT');
+        self.run('COMMIT');
     }
     
     self.rollback = function(cb) {
-        db.run('rollback');
+        self.run('rollback');
     }
     
     self.relai = function relai(qry) {
@@ -373,12 +386,14 @@ exports.db = function(file, mode, cb) {
         return self;
     }
     
+    
     var modelsTableSchema = {
 		model: 'text'				
 	};
 	
 	self.model = {
-		tables: {}
+		tables: {},
+		triggers: {}
 	};
 		
 	self.createModelsTable = function() {
@@ -438,16 +453,32 @@ exports.db = function(file, mode, cb) {
                 });
             }
         }
+        for(var triggerTable in newModel.triggers) {
+            var triggerSet = newModel.triggers[triggerTable];
+            if( ! self.model.triggers[triggerTable] ) {
+                for(var trigger in triggerSet) {
+                    queries.push( self.createTrigger(triggerTable, trigger, triggerSet[trigger]) )
+                }
+            } else {
+                var oldTriggerSet = self.model.triggers[triggerTable];
+                for(var trigger in triggerSet) {
+                    if( ! oldTriggerSet[trigger] ) {
+                        queries.push( self.createTrigger( triggerTable, trigger, triggerSet[trigger] ) );
+                    }
+                }
+            }
+        }
         return queries;
     }
     
     self.upgrade = function(newModel, cb) {
         utils.waterfall([
             function(next) { 
+                //console.log('load model');
 				self.loadModel(next); 
 			},
             function(model, next) {
-				//console.log('upgrade2 '+JSON.stringify(model));
+				//console.log('upgrade model');
                 var queries = buildUpgradeQueries(newModel);               
                 if(queries.length) {
                     queries.push( self._models.insert( { model: JSON.stringify(newModel) }) );
@@ -457,6 +488,7 @@ exports.db = function(file, mode, cb) {
                 }
             },
             function(next) {
+                //console.log('reload model', newModel);
                 self.model = newModel;
                 utils.each( newModel.tables, function(table, tableName) {
                     self[tableName] = new Table(tableName, "id", self);
