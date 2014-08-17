@@ -1,6 +1,6 @@
 {
   "name": "litesql",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "The easy way to deal with sqlite databases in node.js",
   "scripts": {
     "test": "test"
