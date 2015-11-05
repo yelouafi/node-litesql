@@ -20,6 +20,6 @@
   },
   "homepage": "https://github.com/yelouafi/node-litesql",
   "dependencies": {
-    "sqlite3": "~2.2.3"
+    "sqlite3": "~3.1.1"
   }
 }
